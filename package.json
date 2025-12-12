@@ -10,7 +10,7 @@
     "electron:dev": "concurrently \"npm:dev\" \"wait-on http://localhost:3000 && electron .\"",
     "build:electron": "npm run build && electron-builder"
   },
-  "main": "electron/main.js",
+  "main": "electron/main.cjs",
   "dependencies": {
     "react": "^19.2.3",
     
@@ -18,8 +18,7 @@
     "lucide-react": "^0.560.0",
     "electron-is-dev": "^2.0.0",
     "electron-store": "^8.1.0",
-    "fast-xml-parser": "^4.2.4",
-    
+    "fast-xml-parser": "^4.2.4"
   },
   "build": {
     "appId": "com.syntax.audio",
