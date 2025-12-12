@@ -8,13 +8,10 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
-        allowedHosts: ['music.zuens2020.work'],
       },
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
+      // No remote AI provider configured in this packaged desktop build
+      define: {},
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
