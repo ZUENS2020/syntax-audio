@@ -11,6 +11,8 @@
     "build:electron": "npm run build && electron-builder"
   },
   "main": "electron/main.cjs",
+  "description": "A small desktop audio player packaged with Electron",
+  "author": "",
   "dependencies": {
     "react": "^19.2.3",
     
