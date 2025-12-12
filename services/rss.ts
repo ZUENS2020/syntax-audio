@@ -4,41 +4,19 @@ export const parseRssFeed = async (feedUrl: string): Promise<Track[]> => {
     try {
         let text = '';
         
-        // If running inside Electron, prefer the main process to perform the fetch
-        const win = typeof window !== 'undefined' ? (window as any) : undefined;
-        if (win?.api?.fetchUrl && typeof win.api.fetchUrl === 'function') {
-            try {
-                text = await win.api.fetchUrl(feedUrl);
-            } catch (ipcErr) {
-                console.warn('IPC fetch failed, falling back to renderer fetch...', ipcErr);
-                // Fall through to web fetch fallback
-                try {
-                    const response = await fetch(feedUrl);
-                    if (!response.ok) throw new Error("Network response was not ok");
-                    text = await response.text();
-                } catch (directError) {
-                    console.warn("Direct RSS fetch failed, attempting CORS proxy...", directError);
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`;
-                    const response = await fetch(proxyUrl);
-                    if (!response.ok) throw new Error("Proxy response was not ok");
-                    text = await response.text();
-                }
-            }
-        } else {
-            try {
-                // Try direct fetch first
-                const response = await fetch(feedUrl);
-                if (!response.ok) throw new Error("Network response was not ok");
-                text = await response.text();
-            } catch (directError) {
-                console.warn("Direct RSS fetch failed, attempting CORS proxy...", directError);
-                // If direct fetch fails (likely CORS), try via proxy
-                // Using allorigins.win as a fallback CORS proxy
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`;
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error("Proxy response was not ok");
-                text = await response.text();
-            }
+        try {
+            // Try direct fetch first
+            const response = await fetch(feedUrl);
+            if (!response.ok) throw new Error("Network response was not ok");
+            text = await response.text();
+        } catch (directError) {
+            console.warn("Direct RSS fetch failed, attempting CORS proxy...", directError);
+            // If direct fetch fails (likely CORS), try via proxy
+            // Using allorigins.win as a fallback CORS proxy
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`;
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error("Proxy response was not ok");
+            text = await response.text();
         }
         
         const parser = new DOMParser();
