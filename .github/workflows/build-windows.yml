@@ -1,7 +1,15 @@
 name: Build Windows EXE
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional tag for the release (e.g. v0.1.0)'
+        required: false
+        default: ''
+  push:
+    branches:
+      - main
 
 jobs:
   build-windows:
@@ -64,3 +72,24 @@ jobs:
           path: |
             dist/*.exe
             dist/*.nsis* || dist/latest.yml
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || format('v0.0.0-{0}', github.run_id) }}
+          release_name: ${{ github.event.inputs.release_tag || format('syntax-audio-{0}', github.run_id) }}
+          body: 'Automated Windows installer build'
+          draft: false
+          prerelease: false
+
+      - name: Upload installer to Release
+        if: steps.create_release.outputs.upload_url != ''
+        uses: softprops/action-upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: dist/syntax-audio Setup 0.0.0.exe
+          asset_name: syntax-audio-setup-${{ github.run_id }}.exe
+          asset_content_type: application/octet-stream
