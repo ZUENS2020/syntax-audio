@@ -1,0 +1,5 @@
+{
+  "name": "Syntax Audio",
+  "description": "A minimalist, code-centric music player inspired by musicforprogramming.net, featuring local file import and AI-generated track analysis.",
+  "requestFramePermissions": []
+}
