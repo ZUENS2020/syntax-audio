@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Track, PlayerState, Workspace } from './types';
+import { Track, PlayerState, Workspace, PlayMode } from './types';
 import BrandSidebar from './components/BrandSidebar';
 import PlayerHeader from './components/PlayerHeader';
 import { saveTracks, loadTracks, getWorkspaces, saveWorkspace, deleteWorkspace } from './services/storage';
@@ -17,6 +17,7 @@ const App: React.FC = () => {
     duration: 0,
     volume: 0.8,
   });
+  const [playMode, setPlayMode] = useState<PlayMode>('linear');
   
   // Tracks which workspace the current playlist data actually belongs to.
   // Prevents saving data to the wrong workspace during switching transitions.
@@ -234,13 +235,41 @@ const App: React.FC = () => {
     }
   };
 
+  const handleTogglePlayMode = () => {
+      const modes: PlayMode[] = ['linear', 'random', 'loop'];
+      const nextIndex = (modes.indexOf(playMode) + 1) % modes.length;
+      setPlayMode(modes[nextIndex]);
+  };
+
   const handleNext = () => {
     if (playlist.length === 0) return;
+
+    if (playMode === 'loop') {
+        if (audioRef.current) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play();
+        }
+        return;
+    }
+
+    if (playMode === 'random') {
+        let nextIndex = Math.floor(Math.random() * playlist.length);
+        // Try not to pick the exact same song unless it's the only one
+        if (playlist.length > 1 && nextIndex === currentTrackIndex) {
+            nextIndex = (nextIndex + 1) % playlist.length;
+        }
+        setCurrentTrackIndex(nextIndex);
+        return;
+    }
+
+    // Linear
     setCurrentTrackIndex(prev => (prev + 1) % playlist.length);
   };
 
   const handlePrev = () => {
     if (playlist.length === 0) return;
+    // Simple logic: Prev always goes to previous track in list, 
+    // even in random mode, to allow user to check "what was before".
     setCurrentTrackIndex(prev => (prev - 1 + playlist.length) % playlist.length);
   };
 
@@ -307,11 +336,13 @@ const App: React.FC = () => {
         <PlayerHeader
             currentTrack={currentTrack}
             playerState={playerState}
+            playMode={playMode}
             onPlayPause={togglePlayPause}
             onSeek={handleSeek}
             onNext={handleNext}
             onPrev={handlePrev}
             onToggleFavorite={toggleFavorite}
+            onToggleMode={handleTogglePlayMode}
         />
 
         {/* Playlist List */}

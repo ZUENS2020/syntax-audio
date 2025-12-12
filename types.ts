@@ -28,3 +28,5 @@ export interface LogEntry {
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
 }
+
+export type PlayMode = 'linear' | 'random' | 'loop';

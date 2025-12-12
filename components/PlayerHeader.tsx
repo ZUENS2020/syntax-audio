@@ -1,24 +1,28 @@
 import React from 'react';
-import { PlayerState, Track } from '../types';
+import { PlayerState, Track, PlayMode } from '../types';
 
 interface PlayerHeaderProps {
   currentTrack: Track | null;
   playerState: PlayerState;
+  playMode: PlayMode;
   onPlayPause: () => void;
   onSeek: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onNext: () => void;
   onPrev: () => void;
   onToggleFavorite: () => void;
+  onToggleMode: () => void;
 }
 
 const PlayerHeader: React.FC<PlayerHeaderProps> = ({
   currentTrack,
   playerState,
+  playMode,
   onPlayPause,
   onSeek,
   onNext,
   onPrev,
-  onToggleFavorite
+  onToggleFavorite,
+  onToggleMode
 }) => {
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00";
@@ -45,7 +49,7 @@ const PlayerHeader: React.FC<PlayerHeaderProps> = ({
       <div className="font-mono text-sm space-y-2">
         
         {/* Play/Time Row */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center flex-wrap gap-4">
             <button 
                 onClick={onPrev} 
                 className="text-syntax-class hover:bg-syntax-class hover:text-black px-1 -mx-1 transition-colors"
@@ -64,8 +68,15 @@ const PlayerHeader: React.FC<PlayerHeaderProps> = ({
             >
                 {playerState.isPlaying ? '[stop]' : '[play]'}
             </button>
+
+            <button
+                onClick={onToggleMode}
+                className="text-syntax-function hover:bg-syntax-function hover:text-black px-1 -mx-1 transition-colors ml-2"
+            >
+                [strategy: {playMode}]
+            </button>
             
-            <span className="text-syntax-comment pl-4">
+            <span className="text-syntax-comment pl-2">
                 {formatTime(playerState.currentTime)} / {formatTime(playerState.duration)}
             </span>
         </div>

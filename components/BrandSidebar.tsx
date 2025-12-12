@@ -310,9 +310,6 @@ const BrandSidebar: React.FC<BrandSidebarProps> = ({
         [waiting for instructions...]
       </div>
       
-      <div className="mt-auto pt-12 text-xs text-syntax-comment">
-        https://github.com/syntax-audio
-      </div>
     </div>
   );
 };
