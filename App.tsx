@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { io, Socket } from 'socket.io-client';
 import { Track, PlayerState, Workspace, PlayMode } from './types';
 import BrandSidebar from './components/BrandSidebar';
 import PlayerHeader from './components/PlayerHeader';
@@ -24,128 +25,146 @@ const App: React.FC = () => {
   const [loadedWorkspaceId, setLoadedWorkspaceId] = useState<string | null>(null);
   
   const audioRef = useRef<HTMLAudioElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
-  // 1. Initialize Workspaces
+  // Socket.IO连接
   useEffect(() => {
-    const init = async () => {
-        const loadedWorkspaces = await getWorkspaces();
-        if (loadedWorkspaces.length === 0) {
-            // Create default if none exist
-            const defaultWs = { id: 'default', name: 'main' };
-            await saveWorkspace(defaultWs);
-            setWorkspaces([defaultWs]);
-            setActiveWorkspaceId('default');
-        } else {
-            setWorkspaces(loadedWorkspaces);
-            // Default to first available or stored preference (keeping simple: first)
-            setActiveWorkspaceId(loadedWorkspaces[0].id);
-        }
-    };
-    init();
-  }, []);
+    socketRef.current = io('http://localhost:3001');
 
-  // 2. Load Tracks when Workspace Changes
-  useEffect(() => {
-    if (!activeWorkspaceId) return;
-
-    // Invalidate loaded status immediately to prevent 'save' effects from writing old data to new ID
-    setLoadedWorkspaceId(null);
-    
-    // Stop playback when switching
-    if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
-    }
-    setPlayerState(prev => ({ ...prev, isPlaying: false, currentTime: 0, duration: 0 }));
-    setCurrentTrackIndex(-1);
-
-    loadTracks(activeWorkspaceId).then(tracks => {
-        setPlaylist(tracks);
-        if (tracks.length > 0) {
-            setCurrentTrackIndex(0);
-        }
-        // Only mark as loaded if the ID hasn't changed again while we were loading
-        setLoadedWorkspaceId(activeWorkspaceId);
+    socketRef.current.on('workspaces', (workspaces) => {
+      setWorkspaces(workspaces);
+      if (workspaces.length > 0 && !activeWorkspaceId) {
+        setActiveWorkspaceId(workspaces[0].id);
+      }
     });
+
+    socketRef.current.on('songs', (songs) => {
+      // 同步所有歌曲
+      const remoteTracks: Track[] = songs.map((song: any) => ({
+        id: song.id,
+        name: song.originalName,
+        url: `http://localhost:3001/stream/${song.id}`,
+        isFavorite: false,
+        source: 'remote',
+        workspaceId: song.workspaceId
+      }));
+      // 只显示当前工作空间的歌曲
+      const currentWorkspaceSongs = remoteTracks.filter(track => track.workspaceId === activeWorkspaceId);
+      setPlaylist(currentWorkspaceSongs);
+    });
+
+    socketRef.current.on('workspace-created', (workspace) => {
+      setWorkspaces(prev => [...prev, workspace]);
+    });
+
+    socketRef.current.on('workspace-updated', (workspace) => {
+      setWorkspaces(prev => prev.map(w => w.id === workspace.id ? workspace : w));
+      if (workspace.id === activeWorkspaceId) {
+        // 更新当前工作空间的播放列表
+        const remoteTracks: Track[] = workspace.playlist.map((song: any) => ({
+          id: song.id,
+          name: song.originalName,
+          url: `http://localhost:3001/stream/${song.id}`,
+          isFavorite: false,
+          source: 'remote',
+          workspaceId: song.workspaceId
+        }));
+        setPlaylist(remoteTracks);
+      }
+    });
+
+    socketRef.current.on('workspace-deleted', (data) => {
+      setWorkspaces(prev => prev.filter(w => w.id !== data.id));
+      if (activeWorkspaceId === data.id) {
+        const remaining = workspaces.filter(w => w.id !== data.id);
+        setActiveWorkspaceId(remaining.length > 0 ? remaining[0].id : '');
+      }
+    });
+
+    socketRef.current.on('song-uploaded', (song) => {
+      if (song.workspaceId === activeWorkspaceId) {
+        const newTrack: Track = {
+          id: song.id,
+          name: song.originalName,
+          url: `http://localhost:3001/stream/${song.id}`,
+          isFavorite: false,
+          source: 'remote',
+          workspaceId: song.workspaceId
+        };
+        setPlaylist(prev => [...prev, newTrack]);
+      }
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
   }, [activeWorkspaceId]);
 
-  // 3. Save Tracks on Playlist Change
+  // 初始化从服务器获取工作空间
   useEffect(() => {
-      // CRITICAL: Only save if the playlist currently in state belongs to the active workspace.
-      if (activeWorkspaceId && loadedWorkspaceId === activeWorkspaceId) {
-          saveTracks(activeWorkspaceId, playlist);
-      }
+    // 工作空间现在通过Socket.IO获取
+  }, []);
+
+// 播放列表现在由服务器管理，不需要本地保存
+  useEffect(() => {
+    // 播放列表通过Socket.IO同步
   }, [playlist, activeWorkspaceId, loadedWorkspaceId]);
 
-  // --- Workspace Actions ---
-
   const handleCreateWorkspace = async (name: string) => {
-      const newId = crypto.randomUUID();
-      const newWs = { id: newId, name };
-      await saveWorkspace(newWs);
-      setWorkspaces(prev => [...prev, newWs]);
-      setActiveWorkspaceId(newId); // Switch to new
+    socketRef.current?.emit('create-workspace', { name, createdBy: 'user' });
   };
 
   const handleSwitchWorkspace = (id: string) => {
-      if (id === activeWorkspaceId) return;
-      setActiveWorkspaceId(id);
+    if (id === activeWorkspaceId) return;
+    setActiveWorkspaceId(id);
+    // 重新加载工作空间的歌曲
+    fetch(`http://localhost:3001/workspaces/${id}/songs`)
+      .then(res => res.json())
+      .then(songs => {
+        const remoteTracks: Track[] = songs.map((song: any) => ({
+          id: song.id,
+          name: song.originalName,
+          url: `http://localhost:3001/stream/${song.id}`,
+          isFavorite: false,
+          source: 'remote',
+          workspaceId: song.workspaceId
+        }));
+        setPlaylist(remoteTracks);
+        setCurrentTrackIndex(-1);
+        setPlayerState(prev => ({ ...prev, isPlaying: false, currentTime: 0, duration: 0 }));
+      });
   };
 
   const handleDeleteWorkspace = async (id: string) => {
-      if (workspaces.length <= 1) {
-          alert("Cannot delete the last workspace.");
-          return;
-      }
-      
-      try {
-          // 1. Determine new active workspace BEFORE deleting from state if needed
-          const remaining = workspaces.filter(w => w.id !== id);
-          let nextActiveId = activeWorkspaceId;
-          
-          if (activeWorkspaceId === id) {
-              // Switch to the first available workspace
-              nextActiveId = remaining[0].id;
-          }
-
-          // 2. Perform DB deletion
-          await deleteWorkspace(id);
-          
-          // 3. Update State
-          if (activeWorkspaceId !== nextActiveId) {
-              setActiveWorkspaceId(nextActiveId);
-          }
-          setWorkspaces(remaining);
-          
-          console.log('Workspace deleted successfully:', id);
-      } catch (e) {
-          console.error("Failed to delete workspace:", e);
-          alert("Error deleting workspace. Please try again.");
-      }
+    if (workspaces.length <= 1) {
+      alert("不能删除最后一个工作区。");
+      return;
+    }
+    socketRef.current?.emit('delete-workspace', id);
   };
 
   // --- Track Actions ---
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
-      const newTracks: Track[] = (Array.from(files) as File[]).map((file) => ({
-        id: crypto.randomUUID(),
-        file,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        url: URL.createObjectURL(file),
-        isFavorite: false,
-        source: 'local',
-        workspaceId: activeWorkspaceId
-      }));
+      for (const file of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('song', file);
+        formData.append('uploadedBy', 'user');
+        formData.append('workspaceId', activeWorkspaceId);
 
-      setPlaylist((prev) => {
-        const updated = [...prev, ...newTracks];
-        if (prev.length === 0) {
-           setCurrentTrackIndex(0);
+        try {
+          const response = await fetch('http://localhost:3001/upload', {
+            method: 'POST',
+            body: formData,
+          });
+          const result = await response.json();
+          console.log('上传成功:', result);
+        } catch (error) {
+          console.error('上传失败:', error);
         }
-        return updated;
-      });
+      }
     }
   };
 

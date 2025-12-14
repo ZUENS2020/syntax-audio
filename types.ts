@@ -5,7 +5,7 @@ export interface Track {
   url: string;
   duration?: number;
   isFavorite?: boolean;
-  source: 'local' | 'rss';
+  source: 'local' | 'rss' | 'remote';
   blob?: Blob; // Used for restoring local files from storage
   workspaceId?: string; // Links track to a specific workspace
 }
