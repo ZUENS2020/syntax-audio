@@ -1,0 +1,34 @@
+name: Deploy on PR merged to stream
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  deploy:
+    if: ${{ github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'stream' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH (password auth)
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: 22
+          ssh_flags: -o StrictHostKeyChecking=no
+          script: |
+            set -e
+            cd "${{ secrets.TARGET_DIR }}" || exit 1
+            git fetch origin
+            git reset --hard origin/stream
+            # 安装依赖并构建（根据项目需要可调整）
+            npm ci --prefer-offline --no-audit --progress=false || true
+            npm run build || true
+            # 执行重启命令（通过 secrets.RESTART_CMD 提供）
+            if [ -n "${{ secrets.RESTART_CMD }}" ]; then
+              bash -lc "${{ secrets.RESTART_CMD }}"
+            fi
