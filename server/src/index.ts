@@ -1,11 +1,13 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import http from 'http';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
+app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -19,34 +21,44 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-// In-memory workspace state
-let workspaceState = {
-  playlist: [] as string[],
-  currentTrack: null as string | null,
-  isPlaying: false,
-  timestamp: 0,
+interface Workspace {
+  id: string;
+  name: string;
+  playlist: string[];
+  currentTrack: string | null;
+  isPlaying: boolean;
+  timestamp: number;
+}
+
+// In-memory workspace management
+let workspaces: Record<string, Workspace> = {};
+let activeWorkspaceId: string | null = null;
+
+const getActiveWorkspace = (): Workspace | null => {
+  return activeWorkspaceId ? workspaces[activeWorkspaceId] : null;
 };
 
 // Multer setup for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     cb(null, UPLOADS_DIR);
   },
-  filename: (req, file, cb) => {
+  filename: (req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     cb(null, file.originalname);
   },
 });
 const upload = multer({ storage });
 
 // API routes
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', upload.single('file'), (req: Request, res: Response) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded.');
   }
   const songName = req.file.originalname;
-  if (!workspaceState.playlist.includes(songName)) {
-    workspaceState.playlist.push(songName);
-    io.emit('playlist-update', workspaceState.playlist);
+  const activeWorkspace = getActiveWorkspace();
+  if (activeWorkspace && !activeWorkspace.playlist.includes(songName)) {
+    activeWorkspace.playlist.push(songName);
+    io.emit('playlist-update', activeWorkspace.playlist);
   }
   res.status(200).send('File uploaded.');
 });
@@ -56,8 +68,13 @@ app.get('/api/songs', (req, res) => {
     if (err) {
       return res.status(500).send('Error reading songs directory.');
     }
-    workspaceState.playlist = files;
-    res.json(files);
+    const activeWorkspace = getActiveWorkspace();
+    if (activeWorkspace) {
+      activeWorkspace.playlist = files;
+      res.json(files);
+    } else {
+      res.json([]);
+    }
   });
 });
 
@@ -71,36 +88,109 @@ app.get('/api/songs/:songName', (req, res) => {
   }
 });
 
+app.delete('/api/songs', (req, res) => {
+  fs.readdir(UPLOADS_DIR, (err, files) => {
+    if (err) {
+      return res.status(500).send('Error reading songs directory.');
+    }
+    for (const file of files) {
+      fs.unlink(path.join(UPLOADS_DIR, file), err => {
+        if (err) {
+          console.error(`Error deleting file ${file}:`, err);
+        }
+      });
+    }
+    const activeWorkspace = getActiveWorkspace();
+    if (activeWorkspace) {
+      activeWorkspace.playlist = [];
+      activeWorkspace.currentTrack = null;
+      activeWorkspace.isPlaying = false;
+      activeWorkspace.timestamp = 0;
+      io.emit('workspace-update', activeWorkspace);
+    }
+    res.status(200).send('Playlist cleared.');
+  });
+});
+
+// Workspace management endpoints
+app.post('/api/workspaces', (req, res) => {
+  const { name } = req.body;
+  const id = uuidv4();
+  const newWorkspace: Workspace = {
+    id,
+    name: name || `Workspace ${Object.keys(workspaces).length + 1}`,
+    playlist: [],
+    currentTrack: null,
+    isPlaying: false,
+    timestamp: 0,
+  };
+  workspaces[id] = newWorkspace;
+  if (!activeWorkspaceId) {
+    activeWorkspaceId = id;
+  }
+  res.status(201).json(newWorkspace);
+});
+
+app.delete('/api/workspaces/:id', (req: Request, res: Response) => {
+  const { id } = req.params;
+  delete workspaces[id];
+  if (activeWorkspaceId === id) {
+    activeWorkspaceId = Object.keys(workspaces)[0] || null;
+  }
+  res.status(204).send();
+});
+
+app.post('/api/workspaces/switch', (req: Request, res: Response) => {
+  const { id } = req.body;
+  if (workspaces[id]) {
+    activeWorkspaceId = id;
+    res.status(200).json(getActiveWorkspace());
+  } else {
+    res.status(404).send('Workspace not found.');
+  }
+});
+
+interface PlayerControlAction {
+  type: 'PLAY' | 'PAUSE' | 'SELECT_TRACK';
+  payload: {
+    track: string;
+    timestamp?: number;
+  };
+}
+
 // Socket.io connection
-io.on('connection', (socket) => {
+io.on('connection', (socket: Socket) => {
   console.log('a user connected');
 
   // Send initial state to the new client
-  socket.emit('workspace-update', workspaceState);
+  socket.emit('workspace-update', getActiveWorkspace());
 
   socket.on('disconnect', () => {
     console.log('user disconnected');
   });
 
-  socket.on('player-control', (action) => {
+  socket.on('player-control', (action: PlayerControlAction) => {
+    const activeWorkspace = getActiveWorkspace();
+    if (!activeWorkspace) return;
+
     switch (action.type) {
       case 'PLAY':
-        workspaceState.isPlaying = true;
-        workspaceState.currentTrack = action.payload.track;
-        workspaceState.timestamp = 0;
+        activeWorkspace.isPlaying = true;
+        activeWorkspace.currentTrack = action.payload.track;
+        activeWorkspace.timestamp = 0;
         break;
       case 'PAUSE':
-        workspaceState.isPlaying = false;
-        workspaceState.timestamp = action.payload.timestamp;
+        activeWorkspace.isPlaying = false;
+        activeWorkspace.timestamp = action.payload.timestamp || 0;
         break;
       case 'SELECT_TRACK':
-        workspaceState.currentTrack = action.payload.track;
-        workspaceState.timestamp = 0;
-        workspaceState.isPlaying = true;
+        activeWorkspace.currentTrack = action.payload.track;
+        activeWorkspace.timestamp = 0;
+        activeWorkspace.isPlaying = true;
         break;
     }
     // Broadcast the updated state to all clients
-    io.emit('workspace-update', workspaceState);
+    io.emit('workspace-update', activeWorkspace);
   });
 });
 
