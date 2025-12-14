@@ -25,10 +25,12 @@ jobs:
             cd "${{ secrets.TARGET_DIR }}" || exit 1
             git fetch origin
             git reset --hard origin/stream
-            # 安装依赖并构建（根据项目需要可调整）
+            # 安装依赖并构建（会构建 client & server）
             npm ci --prefer-offline --no-audit --progress=false || true
-            npm run build || true
-            # 执行重启命令（通过 secrets.RESTART_CMD 提供）
+            npm run build:all || true
+            # 如果设置了 secrets.RESTART_CMD 则使用之，否则尝试使用 pm2 重启或启动服务
             if [ -n "${{ secrets.RESTART_CMD }}" ]; then
               bash -lc "${{ secrets.RESTART_CMD }}"
+            else
+              pm2 restart syntax-audio || pm2 start server/dist/index.js --name syntax-audio || true
             fi

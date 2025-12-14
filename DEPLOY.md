@@ -7,7 +7,12 @@
 - `SERVER_USER`：登录用户名（示例：`root`）
 - `SERVER_PASSWORD`：密码（注意：出于安全考虑建议使用 SSH 密钥替代）
 - `TARGET_DIR`：服务器上的项目目录（示例：`/root/syntax-audio` 或 `~/syntax-audio`）
-- `RESTART_CMD`：可选，合并后在服务器上执行的重启或部署命令，例如 `systemctl restart my-service`、`pm2 restart app`、或 `docker-compose up -d`
+- `RESTART_CMD`：可选，合并后在服务器上执行的重启或部署命令。推荐使用 `pm2`：
+  - 在服务器上安装并启动一次：
+    - `npm i -g pm2`
+    - 在项目目录（首次）运行： `npm --prefix server run build`，然后 `pm2 start server/dist/index.js --name syntax-audio`
+  - 将 `RESTART_CMD` 设置为：`pm2 restart syntax-audio`
+  - 也可以使用 `systemctl restart my-service` 或 `docker compose -f /root/syntax-audio/docker-compose.yml up -d` 等
 
 ## 已实现的流程（工作流内容摘要）
 - 触发：当 PR 被合并（merged）且目标分支为 `stream` 时触发。
