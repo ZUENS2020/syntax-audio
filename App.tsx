@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Track, PlayerState, Workspace, PlayMode } from './types';
 import BrandSidebar from './components/BrandSidebar';
 import PlayerHeader from './components/PlayerHeader';
-import { getSongs, uploadSong } from './services/api';
+import { getSongs, uploadSong, clearPlaylist, createWorkspace, deleteWorkspace, switchWorkspace } from './services/api';
 import socket from './services/socket';
 
 const App: React.FC = () => {
@@ -15,6 +15,8 @@ const App: React.FC = () => {
     volume: 0.8,
   });
   const [playMode, setPlayMode] = useState<PlayMode>('linear');
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -30,8 +32,10 @@ const App: React.FC = () => {
     });
 
     // Listen for workspace updates
-    socket.on('workspace-update', (newState) => {
-      const { playlist: newPlaylist, currentTrack, isPlaying, timestamp } = newState;
+    socket.on('workspace-update', (workspace: Workspace) => {
+      if (!workspace) return;
+      const { playlist: newPlaylist, currentTrack, isPlaying, timestamp, id } = workspace;
+      setActiveWorkspaceId(id);
 
       const tracks = newPlaylist.map((name: string) => ({
         id: name,
@@ -88,8 +92,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleClearPlaylist = () => {
-    // This should be a server-side action
+  const handleClearPlaylist = async () => {
+    await clearPlaylist();
   };
 
   const togglePlayPause = () => {
@@ -155,6 +159,24 @@ const App: React.FC = () => {
     }
   };
 
+  const handleCreateWorkspace = async (name: string) => {
+    if (name) {
+      const newWorkspace = await createWorkspace(name);
+      setWorkspaces(prev => [...prev, newWorkspace]);
+      handleSwitchWorkspace(newWorkspace.id);
+    }
+  };
+
+  const handleDeleteWorkspace = async (id: string) => {
+    await deleteWorkspace(id);
+    setWorkspaces(prev => prev.filter(w => w.id !== id));
+  };
+
+  const handleSwitchWorkspace = async (id: string) => {
+    const workspace = await switchWorkspace(id);
+    socket.emit('workspace-update', workspace);
+  };
+
   const currentTrack = currentTrackIndex >= 0 ? playlist[currentTrackIndex] : null;
 
   return (
@@ -167,11 +189,11 @@ const App: React.FC = () => {
         onClear={handleClearPlaylist}
         audioRef={audioRef}
         isPlaying={playerState.isPlaying}
-        workspaces={[]}
-        activeWorkspaceId=""
-        onCreateWorkspace={() => {}}
-        onSwitchWorkspace={() => {}}
-        onDeleteWorkspace={() => {}}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onCreateWorkspace={handleCreateWorkspace}
+        onSwitchWorkspace={handleSwitchWorkspace}
+        onDeleteWorkspace={handleDeleteWorkspace}
       />
       <div className="flex-1 flex flex-col md:h-screen md:overflow-y-auto pb-12 scrollbar-hide">
         <PlayerHeader
