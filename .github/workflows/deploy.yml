@@ -3,6 +3,7 @@ name: Deploy on PR merged to stream
 on:
   pull_request:
     types: [closed]
+  workflow_dispatch:
 
 jobs:
   deploy:
