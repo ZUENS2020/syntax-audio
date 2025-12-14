@@ -26,6 +26,32 @@
 2. 发起一个将该分支合并到 `stream` 的 PR，并合并。
 3. 在 GitHub Actions 页查看 `.github/workflows/deploy.yml` 的执行日志，确认部署步骤成功并检查服务器服务状态。
 
+## 首次在服务器上部署（快速修复）
+如果你在服务器上运行 `npm --prefix server run build` 时提示 `Missing script: "build"` 或找不到 `server/dist/index.js`，说明服务器仓库尚未同步到包含 `build` 脚本的最新提交。可执行以下步骤快速修复：
+
+```bash
+# 确保位于项目根目录
+cd ~/syntax-audio
+# 拉取远程 stream 分支并重置到远程状态
+git fetch origin
+git reset --hard origin/stream
+# 安装 server 依赖并构建
+cd server
+npm ci
+npm run build
+# 构建成功后，返回项目根并用 pm2 启动
+cd ..
+pm i -g pm2
+pm2 start server/dist/index.js --name syntax-audio
+pm2 save
+# 可选：让 pm2 在系统重启后自启动（按提示运行输出的命令）
+pm2 startup
+```
+
+完成上述步骤后，`server/dist/index.js` 应存在，`pm2 start` 不会再报错。
+
 ---
 
-如果你愿意，我可以帮你改成使用 SSH 密钥认证（更安全），并协助把 `RESTART_CMD` 设置为合适的重启命令。
+如果你愿意，我可以：
+- 帮你手动触发 Actions 工作流来完成拉取、构建和重启（前提是你已在仓库 Secrets 中设置好 `SERVER_*`），或者
+- 帮你将服务器切换为使用 SSH key 认证并自动克隆/回退仓库（如果 `TARGET_DIR` 不存在时自动 clone）。
