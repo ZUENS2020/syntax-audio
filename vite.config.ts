@@ -9,6 +9,16 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
         allowedHosts: ['music.zuens2020.work'],
+        proxy: {
+          '/api': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
+          '/socket.io': {
+            target: 'ws://localhost:3001',
+            ws: true,
+          },
+        },
       },
       plugins: [react()],
       define: {

@@ -4,19 +4,23 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"npm:dev:client\" \"npm:dev:server\"",
+    "dev:client": "vite",
+    "dev:server": "cd server && npx ts-node src/index.ts",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.3",
     "@google/genai": "^1.33.0",
+    "lucide-react": "^0.560.0",
+    "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "lucide-react": "^0.560.0"
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^8.2.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
