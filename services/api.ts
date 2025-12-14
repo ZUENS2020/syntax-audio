@@ -13,3 +13,33 @@ export const uploadSong = async (file: File) => {
     body: formData,
   });
 };
+
+export const clearPlaylist = async () => {
+  await fetch('/api/songs', {
+    method: 'DELETE',
+  });
+};
+
+export const createWorkspace = async (name: string) => {
+  const response = await fetch('/api/workspaces', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  return response.json();
+};
+
+export const deleteWorkspace = async (id: string) => {
+  await fetch(`/api/workspaces/${id}`, {
+    method: 'DELETE',
+  });
+};
+
+export const switchWorkspace = async (id: string) => {
+  const response = await fetch('/api/workspaces/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+  return response.json();
+};
