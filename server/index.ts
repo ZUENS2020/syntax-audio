@@ -120,8 +120,8 @@ app.post('/upload', upload.single('song'), (req, res) => {
 
 app.get('/workspaces', (_req, res) => res.json(sharedWorkspaces));
 app.get('/songs', (_req, res) => res.json(sharedSongs));
-app.get('/workspaces/:workspaceId/songs', (req, res) => {
-  const workspaceId = req.params.workspaceId;
+app.get('/workspaces/:id/songs', (req, res) => {
+  const workspaceId = req.params.id;
   res.json(sharedSongs.filter(s => s.workspaceId === workspaceId));
 });
 
