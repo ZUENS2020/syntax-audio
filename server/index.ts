@@ -8,6 +8,10 @@ import cors from 'cors';
 
 const app = express();
 app.use(cors());
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, '../dist')));
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' }
