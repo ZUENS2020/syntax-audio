@@ -29,7 +29,7 @@ const App: React.FC = () => {
 
   // Socket.IO连接
   useEffect(() => {
-    socketRef.current = io('http://localhost:3001');
+    socketRef.current = io('http://localhost:3000');
 
     socketRef.current.on('workspaces', (workspaces) => {
       setWorkspaces(workspaces);
@@ -43,7 +43,7 @@ const App: React.FC = () => {
       const remoteTracks: Track[] = songs.map((song: any) => ({
         id: song.id,
         name: song.originalName,
-        url: `http://localhost:3001/stream/${song.id}`,
+        url: `http://localhost:3000/stream/${song.id}`,
         isFavorite: false,
         source: 'remote',
         workspaceId: song.workspaceId
@@ -64,7 +64,7 @@ const App: React.FC = () => {
         const remoteTracks: Track[] = workspace.playlist.map((song: any) => ({
           id: song.id,
           name: song.originalName,
-          url: `http://localhost:3001/stream/${song.id}`,
+          url: `http://localhost:3000/stream/${song.id}`,
           isFavorite: false,
           source: 'remote',
           workspaceId: song.workspaceId
@@ -86,7 +86,7 @@ const App: React.FC = () => {
         const newTrack: Track = {
           id: song.id,
           name: song.originalName,
-          url: `http://localhost:3001/stream/${song.id}`,
+          url: `http://localhost:3000/stream/${song.id}`,
           isFavorite: false,
           source: 'remote',
           workspaceId: song.workspaceId
@@ -118,7 +118,7 @@ const App: React.FC = () => {
     if (id === activeWorkspaceId) return;
     setActiveWorkspaceId(id);
     // 重新加载工作空间的歌曲
-    fetch(`http://localhost:3001/workspaces/${id}/songs`)
+    fetch(`http://localhost:3000/workspaces/${id}/songs`)
       .then(res => res.json())
       .then(songs => {
         const remoteTracks: Track[] = songs.map((song: any) => ({
@@ -155,7 +155,7 @@ const App: React.FC = () => {
         formData.append('workspaceId', activeWorkspaceId);
 
         try {
-          const response = await fetch('http://localhost:3001/upload', {
+          const response = await fetch('http://localhost:3000/upload', {
             method: 'POST',
             body: formData,
           });
